@@ -1,0 +1,837 @@
+/**
+ * JavaCC template file created by SF JavaCC plugin 1.5.17+ wizard for JavaCC 1.5.0+
+ */
+options
+{
+  JDK_VERSION = "1.5";
+  static = true;
+}
+
+PARSER_BEGIN(ParserGrammar)
+package edu.buffalo.cse.sql.parser;
+
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.List;
+import java.io.File;
+import edu.buffalo.cse.sql.Schema;
+import edu.buffalo.cse.sql.data.Datum;
+import edu.buffalo.cse.sql.plan.*;
+import edu.buffalo.cse.sql.io.Readtable;
+import java.util.regex.*;
+import java.io.FileNotFoundException;
+  
+
+public class ParserGrammar
+{
+  public static void main(String args []) throws ParseException
+  {
+    ParserGrammar parser;
+    if(args.length == 1)
+    {
+      try {
+		parser  = new ParserGrammar(new java.io.FileInputStream(args[0]));
+	} catch (FileNotFoundException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
+  }
+  
+  }
+}
+
+PARSER_END(ParserGrammar)
+
+SKIP :
+{
+  " "
+| "\r"
+| "\t"
+| "\n"
+}
+
+
+TOKEN : /* Key words*/
+{
+  < K_CREATE : "CREATE" >
+| < K_TABLE: "TABLE" >
+| < K_FROM : "FROM " >
+| < K_FILE : "FILE" >
+| < K_USING: "USING" >
+| < K_CSV : "CSV" >
+| < K_SELECT : "SELECT" >
+| < K_WHERE : "WHERE" >
+
+
+| < K_JOIN : "JOIN" >
+| < K_ON: "ON" >
+| < K_BY : "BY " >
+| < K_UNION : "UNION" >
+| < K_AS : "AS" >
+| < K_AND: "AND" |"and" |"OR "| "or" >
+//| < K_OR : >
+//| < K_TRUE : "TURE" | "true" >
+//| < K_NCTRUE : "true" >
+//| < K_FALSE: "FALSE"  >
+| < K_PAR: "("|")" >
+| < K_NOT: "NOT" >
+| < K_COMPARE : " > " |"< " |"="|" >="|"< =" >
+| < K_AGG : "SUM"|"AVG"|"MAX"|"MIN"|"COUNT">
+//| < K_AVG : "AVG">//| < K_MAX : "MAX">//| < K_MIN : "MIN">//| < K_COUNTs : "COUNT">
+
+
+| < K_INT: "int" >
+| < K_FLOAT : "float " | "double">
+| < K_STRING :"STRING" |"string" >
+| < K_CHAR :"CHAR"|"char" >
+
+| < K_COMMA: "," >
+
+
+}
+TOKEN : /* OPERATORS */
+{
+  < CAL : "+" |"-"|"*"|"/">
+}
+
+TOKEN : //Number
+{
+  < FLOAT : ("-")?(< INTEGER >)+ "." (< INTEGER >)?((["e","E"])? (["-","+"])? (< INTEGER >)+)? >
+| < INTEGER : ("-")?(< DIGIT >)+ >
+| < #DIGIT : [ "0"-"9" ] >
+}
+
+
+TOKEN : /*  file path*/
+{
+  < FILEPATH :
+ < LETTER >  "/" < LETTER > "." < LETTER >
+>
+ | < LETTER  : ("\'")*(< LETTERzero >)+("\\")* ("\'")*>
+|  <#LETTERzero: (["a"-"z","A"-"Z"])>
+}
+
+
+
+// Function definition
+// total query parser function
+ArrayList<PlanNode> PARSERSQL(Map<String, Schema.TableFromFile> tables) :
+{
+  ArrayList<PlanNode> query;
+ }
+{
+  (
+    query = SELECT(tables)
+  | query = CREATE(tables)
+  )
+  
+  {
+    return query;
+  }
+}
+//CREATE TABLE R (A int, B int) FROM FILE 'test/r.dat' USING CSV;
+//create function
+ArrayList<PlanNode> CREATE(Map<String, Schema.TableFromFile> tables) :
+{
+  ArrayList<PlanNode> query;
+  Token filename;
+  Token tablename;
+  Token columnname1;
+  Token columnname2;
+ }
+{
+  ( //CREATE TABLE R (A int, B int) FROM FILE 'test/r.dat' USING CSV;
+    (LOOKAHEAD(2)
+    < K_CREATE > <K_TABLE > 
+    tablename = <LETTER >
+    <K_PAR> columnname1 = < LETTER > <K_INT > "," columnname2 = < LETTER > <K_INT > <K_PAR> < K_FROM > <K_FILE >filename = <FILEPATH ><K_USING > <K_CSV > ";"
+    
+    // take values from table information to initialize tables
+    {
+    Schema.TableFromFile table_R;
+    table_R = new Schema.TableFromFile(new File(filename.image.substring(1,filename.image.length()-1)));
+    table_R.add(new Schema.Column(tablename.image, columnname1.image, Schema.Type.INT));
+    table_R.add(new Schema.Column(tablename.image, columnname2.image, Schema.Type.INT));
+    tables.put(tablename.image, table_R);
+     System.out.println(tables);
+    }
+    )+
+    
+    {
+      query = SELECT(tables);
+    }
+    
+  )+
+   
+   {
+      return query;
+   }
+}
+
+// select function
+ ArrayList<PlanNode> SELECT(Map<String, Schema.TableFromFile> tables) :
+{
+  ProjectionNode query1=new ProjectionNode();
+  ProjectionNode query_1 = new ProjectionNode();
+  UnionNode query2=new UnionNode();
+  AggregateNode query4 = new AggregateNode();
+  PlanNode query3=null;
+  ArrayList<PlanNode> query=new ArrayList<PlanNode>();
+  Token t1=null;	Token t1_1=null;	Token t1_2=null;	Token t1_3=null;
+  Token tc1=null;   Token tc1_1=null; 	Token tc1_2=null;	Token tc1_3=null;// colname
+  Token t2=null;	Token t2_1=null;
+  Token t3=null;
+  Token t4=null;
+  Token t5=null;
+  Token t6=null;
+  Token t7=null;
+  Token t8=null;
+  Token t9=null;
+  Token p1=null;
+  
+  Token u1=null;	Token u2=null;
+
+  Token t11=null;	Token t11_1=null;
+  Token t22=null;	Token t22_1=null;
+  Token t33=null;
+  Token t44=null;
+  Token t55=null;
+  Token t66=null;
+  Token t77=null;
+  Token t88=null;
+  Token t99=null;
+  Token p11=null;
+
+  Token t111=null;	Token t111_1=null;
+  Token t222=null;	Token t222_1=null;
+
+  Token tN1=null;	Token tN1_1=null;	Token tN1_2=null;
+  Token tN2=null; 
+  Token tN3=null;// table name
+
+  Token j1=null;//join
+  Token o1=null;//on
+  Token oc1=null;
+  Token o2=null;
+  Token oc2=null;
+
+  Token w1=null;	Token w11=null;		Token w111=null;
+  Token wc1=null;	Token wc11=null;	Token wc111=null;
+  Token w2=null;	Token w22=null;		Token w222=null;
+  Token wc2=null;	Token wc22=null;	Token wc222=null;
+  
+  Token com1=null;//compare
+  Token com2=null;
+  Token com3=null;
+  
+  Token aor1=null;
+  Token aor2=null;
+
+  Token p2=null;
+  Token p3=null;
+  Token p4=null;
+  Token p5=null;
+  Token p6=null;
+  Token p7=null;
+  Token p8=null;
+  Token p9=null;
+
+  Token a1=null;//aggregate
+  Token a2=null;Token l2=null;Token l3=null;
+  
+  int i1;
+  int i2;
+  
+  float f1;
+  String s1;
+
+  Token S1=null; Token S2=null; Token S3=null; Token S4=null; Token S5=null; Token S6=null; Token S7=null; Token S8=null;
+  Token st1=null; Token st2=null;
+ }
+{
+   //SELECT R.A, S.C FROM R, S WHERE (R.B = S.B) AND ((R.A > S.C) or (R.A < S.C));
+< K_SELECT >
+(a1=< K_AGG >)?(p1=< K_PAR >)?(t1=< INTEGER >(t4=< CAL >t5=< INTEGER >)?(< K_PAR >)?(t9=< CAL >t8=< INTEGER >)?|t1=<FLOAT >(t4=< CAL >t5=< INTEGER >)?|t1=< CAL >< K_PAR >|(t3=< K_NOT >)?t1=< LETTER >("." tc1=< LETTER>)? (t6=< K_AND > t7=< LETTER >)?(< CAL >l3=< LETTER >)?(p1=< K_PAR >)?)
+(< EOF >|(";")|<K_AS > t2=<LETTER>)?(",")?(a2=< K_AGG>)?((p1=< K_PAR >)?(t1_1=< INTEGER >(t4=< CAL >t5=< INTEGER >)?(< K_PAR >)?(t9=< CAL >t8=< INTEGER >)?|t1=<FLOAT >(t4=< CAL >t5=< INTEGER >)?|(t3=< K_NOT >)?t1_1=< LETTER > ("." tc1_1=< LETTER>)?(t6=< K_AND > t7=< LETTER >)?(< CAL >l2=< LETTER >)?(p1=< K_PAR >)?)
+(","t1_2=< LETTER > "." tc1_2=< LETTER>)?(","t1_3=< LETTER > "." tc1_3=< LETTER>)?
+(< EOF >|(";")|<K_AS > t2_1=<LETTER>)?)? (< K_FROM > tN1=< LETTER>(",")?(j1=< K_JOIN >)?(tN1_1=< LETTER >)?(",")?(tN1_2=< LETTER >)?)?(< K_ON >o1=< LETTER >"."oc1=< LETTER >com1=<K_COMPARE >o2=< LETTER >"."oc2=< LETTER >)?
+(< K_WHERE >(p2=< K_PAR>)?(p3=< K_PAR>)?w1=< LETTER >"."wc1=< LETTER >com1=<K_COMPARE >w2=< LETTER >"."wc2=< LETTER >(p4=< K_PAR>)?(aor1=< K_AND >)?(p7=< K_PAR>)?(p5=< K_PAR>)?(w11=< LETTER >"."wc11=< LETTER >com2=<K_COMPARE >w22=< LETTER >"."wc22=< LETTER >)?(p6=< K_PAR>)?(aor2=< K_AND >)?(p8=< K_PAR>)?(w111=< LETTER >"."wc111=< LETTER >com3=<K_COMPARE >w222=< LETTER >"."wc222=< LETTER >)?(p9=< K_PAR>)?)?//? zero or 1 time
+(u1=< K_UNION >)*
+(< K_SELECT > (p11=< K_PAR >)?(t11=< INTEGER >(t44=< CAL >t55=< INTEGER >)?(< K_PAR >)?(t99=< CAL >t88=< INTEGER >)?|t11=<FLOAT >(t44=< CAL >t55=< INTEGER >)?|(t33=< K_NOT >)?t11=< LETTER > (t66=< K_AND > t77=< LETTER >)?)
+(< EOF >|(";")|<K_AS > t22=<LETTER>)?(",")?((p11=< K_PAR >)?(t11_1=< INTEGER >(t44=< CAL >t55=< INTEGER >)?(< K_PAR >)?(t99=< CAL >t88=< INTEGER >)?|t11=<FLOAT >(t44=< CAL >t55=< INTEGER >)?|(t33=< K_NOT >)?t11_1=< LETTER > (t66=< K_AND > t77=< LETTER >)?)
+(< EOF >|(";")|<K_AS > t22_1=<LETTER>)?)?(< K_FROM > tN2=< LETTER>)?)*
+(u2=< K_UNION >)*
+(< K_SELECT > (p11=< K_PAR >)?(t111=< INTEGER >(t44=< CAL >t55=< INTEGER >)?(< K_PAR >)?(t99=< CAL >t88=< INTEGER >)?|t11=<FLOAT >(t44=< CAL >t55=< INTEGER >)?|(t33=< K_NOT >)?t111=< LETTER > (t66=< K_AND > t77=< LETTER >)?)
+(< EOF >|(";")|<K_AS > t222=<LETTER>)?(",")?((p11=< K_PAR >)?(t111_1=< INTEGER >(t44=< CAL >t55=< INTEGER >)?(< K_PAR >)?(t99=< CAL >t88=< INTEGER >)?|t11=<FLOAT >(t44=< CAL >t55=< INTEGER >)?|(t33=< K_NOT >)?t111_1=< LETTER > (t66=< K_AND > t77=< LETTER >)?)
+(< EOF >|(";")|<K_AS > t222_1=<LETTER>)?)?(< K_FROM > tN3=< LETTER>)?)*
+(< K_SELECT > S1=<LETTER >"."S2=< LETTER >","S3=<LETTER >"."S4=< LETTER >","S5=<LETTER >"."S6=< LETTER >","S7=<LETTER >"."S8=< LETTER ><K_FROM >st1=<LETTER >","st2=< LETTER >";")?
+ 
+ //SELECT R.A, R.B, S.B, S.C FROM R, S;
+
+//SELECT R.A, S.C FROM R JOIN S;//SELECT R.A, R.B, S.B, S.C FROM R JOIN S;////SELECT R.A, S.C FROM R JOIN S ON R.B = S.B;//SELECT R.A, R.B, S.B, S.C FROM R JOIN S ON R.B = S.B;////SELECT R.A, S.C FROM R, S WHERE R.B = S.B;//SELECT R.A, R.B, S.B, S.C FROM R, S WHERE R.B = S.B; 
+  {
+    if (u1==null)
+    {
+      int flag=0;
+      query1=new ProjectionNode();
+	if (t2==null)//as
+	{
+	  if (t5!=null && t8!=null&& p1!=null) // dai kuo hao
+	  {
+	    i1 = (int)Integer.parseInt(t1.image);
+	    i2 = (int)Integer.parseInt(t5.image);
+	    int i3=(int)Integer.parseInt(t8.image);
+	    if (t4.image.contains("+") && t9.image.contains("*"))
+	    {
+      	query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree(ExprTree.OpCode.MULT, new ExprTree(ExprTree.OpCode.ADD, new ExprTree.ConstLeaf(i1), new ExprTree.ConstLeaf(i2)), new ExprTree.ConstLeaf(i3))));
+     	}
+     	NullSourceNode child_1 = new NullSourceNode(1);
+      	query1.setChild(child_1);
+	  }
+	  else if (t5!=null && !t1.image.contains(".") && t8==null)
+	  {
+	    i1 = (int)Integer.parseInt(t1.image);
+	    i2 = (int)Integer.parseInt(t5.image);
+	    if (t4.image.contains("+"))
+	    {
+      	query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree(ExprTree.OpCode.ADD, new ExprTree.ConstLeaf(i1), new ExprTree.ConstLeaf(i2))));
+     	}
+     	else if (t4.image.contains("*"))
+     	{
+       	query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree(ExprTree.OpCode.MULT, new ExprTree.ConstLeaf(i1), new ExprTree.ConstLeaf(i2))));
+     	}
+      	NullSourceNode child_1 = new NullSourceNode(1);
+      	query1.setChild(child_1);
+	  }
+	  else if (t5!=null && t1.image.contains(".") && t8==null)
+	  {
+	    f1=Float.parseFloat(t1.image);
+	    i2 = (int)Integer.parseInt(t5.image);
+	    if (t4.image.contains("+"))
+	    {
+      	query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree(ExprTree.OpCode.ADD, new ExprTree.ConstLeaf(f1), new ExprTree.ConstLeaf(i2))));
+     	}
+     	else if (t4.image.contains("*"))
+     	{
+       	query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree(ExprTree.OpCode.MULT, new ExprTree.ConstLeaf(f1), new ExprTree.ConstLeaf(i2))));
+     	}
+      	NullSourceNode child_1 = new NullSourceNode(1);
+      	query1.setChild(child_1);
+	  }
+	  else
+	  {
+	    s1=t1.image;
+      	if (!t1.image.contains("."))
+      	{
+      	  	if (t1.image.contains("TRUE") || t1.image.contains("true")||t1.image.contains("FALSE"))
+    		{
+    		String s2=t1.image.toLowerCase();
+    		if (t3!=null && t3.image.contains("NOT"))
+    		{
+    		  if (s2.equals("true"))
+    		  {
+    		    s2="false";
+    		  }
+    		  else
+    		  {
+    		    s2="true";
+    		  }
+    		}
+    		if (t6!=null && t6.image.equals("AND"))
+    		{
+    		  String s3=t7.image.toLowerCase();
+    		  if (s2.equals("true") && s3.equals("false"))
+    		  {
+    		    s2="false";
+    		  }
+    		}
+    		else if (t6!=null && t6.image.equals("OR"))
+    		{
+    		  String s3=t7.image.toLowerCase();
+    		  if (s2.equals("true") && s3.equals("false"))
+    		  {
+    		    s2="true";
+    		  }
+    		}
+    		query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree.ConstLeaf(s2)));
+      		NullSourceNode child_1 = new NullSourceNode(1);
+      		query1.setChild(child_1);
+    		}
+    		else if (t1.image.matches("[^0-9]+") && tN1==null) // floorbar zi fu chuan
+    		{
+    		String s2=t1.image;
+    		if (s2.substring(0,1).equals("\'"))
+    		{
+				s2=s2.substring(1,s2.length()-1);
+    		}
+            int i4=0;
+            int i3=0;
+            int i5=s2.length();
+            if (s2.contains("\\"))
+            {
+               i3=s2.indexOf("\\");	
+               String s3="";
+               for (i4=s2.indexOf("\\");i4<s2.length();i4=i4+2){
+                 	if (s2.substring(i4,i4+1).equals("\\"))
+                 	{
+                	s3=s3+s2.substring(i4+1,i4+2);
+               		}     	
+            	}
+            s2=s2.substring(0,i3)+s3;
+    		}
+    		query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree.ConstLeaf(s2)));
+            NullSourceNode child_1 = new NullSourceNode(1);
+            query1.setChild(child_1);
+    		}
+    		else if (t1.image.matches("[^0-9]+") && a1!=null  && tN1!=null && tN1_1==null && a2==null)
+    		{
+    		  Schema.TableFromFile table_R=tables.get(tN1.image);
+    		  ScanNode child_1 = new ScanNode(tN1.image, tN1.image,  table_R);
+   	 		  flag=1;
+   	 		  if (a1.image.contains("SUM"))   	 		  {
+    		  query4.addAggregate(new AggregateNode.AggColumn("Sum", new ExprTree.VarLeaf(null, t1.image),AggregateNode.AType.SUM));    		  }
+    		  else if (a1.image.contains("AVG"))    		  {
+    		  query4.addAggregate(new AggregateNode.AggColumn("Average", new ExprTree.VarLeaf(null, t1.image),AggregateNode.AType.AVG));    		  }
+    		  else if (a1.image.contains("MIN"))
+    		  {
+    		  query4.addAggregate(new AggregateNode.AggColumn("Min", new ExprTree.VarLeaf(null, t1.image),AggregateNode.AType.MIN));      		  }
+    		  else if (a1.image.contains("MAX"))
+    		  {
+    		  query4.addAggregate(new AggregateNode.AggColumn("Max", new ExprTree.VarLeaf(null, t1.image),AggregateNode.AType.MAX));    		  }
+    		  else if (a1.image.contains("COUNT"))    		  {
+    		  query4.addAggregate(new AggregateNode.AggColumn("Count", new ExprTree.ConstLeaf(1),AggregateNode.AType.COUNT));    		  } 
+    		  query4.setChild(child_1);    		}
+    		else if (t1.image.matches("[^0-9]+") && a1!=null  && tN1!=null && tN1_1!=null && a2==null)
+    		{
+    		  if (w1!=null && com1.image.contains("="))    		  {
+    		    if (l3!=null && aor1==null)
+    		    {
+    		       Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		  	Schema.TableFromFile table_R=tables.get(tN1.image);
+    			ScanNode lhs_3 = new ScanNode(tN1.image, tN1.image, table_R);
+    			ScanNode rhs_4 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    			JoinNode child_2 = new JoinNode();
+    			child_2.setLHS(lhs_3);
+    			child_2.setRHS(rhs_4);
+    			SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w1.image, wc1.image), new ExprTree.VarLeaf(w2.image, wc2.image)));
+    			child_1.setChild(child_2);
+    			flag=1;
+    			if (a1.image.contains("SUM"))    			{  
+    			query4.addAggregate(new AggregateNode.AggColumn("Sum", new ExprTree(ExprTree.OpCode.MULT, new ExprTree.VarLeaf(null, t1.image), new ExprTree.VarLeaf(null, l3.image)),AggregateNode.AType.SUM));
+    			query4.setChild(child_1);    			}    		    }
+    		    else if (l3!=null && aor1.image.contains("AND"))    		    {
+    		      Schema.TableFromFile table_T=tables.get(tN1_2.image);
+    		      Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		      Schema.TableFromFile table_R=tables.get(tN1.image);
+    			  ScanNode lhs_5 = new ScanNode(tN1.image, tN1.image, table_R);
+    		      ScanNode rhs_6 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    			  JoinNode lhs_3 = new JoinNode();
+    			  lhs_3.setLHS(lhs_5);
+    			  lhs_3.setRHS(rhs_6);
+    			  ScanNode rhs_4 = new ScanNode(tN1_2.image, tN1_2.image, table_T);
+    			  JoinNode child_2 = new JoinNode();
+    			  child_2.setLHS(lhs_3);
+    			  child_2.setRHS(rhs_4);
+    			  SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.AND, new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w1.image, wc1.image), new ExprTree.VarLeaf(w2.image, wc2.image)), new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w11.image, wc11.image), new ExprTree.VarLeaf(w22.image, wc22.image))));
+    			  child_1.setChild(child_2);
+    			  AggregateNode query_0 = new AggregateNode();
+    			  flag=1;
+    			  if (a1.image.contains("SUM"))    			  {  
+    			  query4.addAggregate(new AggregateNode.AggColumn("Sum", new ExprTree(ExprTree.OpCode.MULT, new ExprTree.VarLeaf(null, t1.image), new ExprTree.VarLeaf(null, l3.image)),AggregateNode.AType.SUM));
+    			  query4.setChild(child_1);    			  }    			    		    }
+    		    else    		    {      
+    		    Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		  	Schema.TableFromFile table_R=tables.get(tN1.image);
+    			ScanNode lhs_2 = new ScanNode(tN1.image, tN1.image, table_R);
+    		  	ScanNode rhs_3 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    			JoinNode child_2 = new JoinNode();
+    			child_2.setLHS(lhs_2);
+    			child_2.setRHS(rhs_3);
+    			SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w1.image, wc1.image), new ExprTree.VarLeaf(w2.image, wc2.image)));
+    			child_1.setChild(child_2);
+    			flag=1;
+    		  	if (a1.image.contains("COUNT"))
+    		  	{  
+    		  	query4.addAggregate(new AggregateNode.AggColumn("Count", new ExprTree.ConstLeaf(1),AggregateNode.AType.COUNT));
+    		  	}
+    		  	else if (a1.image.contains("SUM"))    		  	{
+    		  	query4.addAggregate(new AggregateNode.AggColumn("Sum", new ExprTree.VarLeaf(null, t1.image),AggregateNode.AType.SUM));    		  	}
+    		  	query4.setChild(child_1);
+    		 	}    		  }
+    		  else    		  {
+    		  Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		  Schema.TableFromFile table_R=tables.get(tN1.image);
+    		  ScanNode lhs_2 = new ScanNode(tN1.image, tN1.image, table_R);
+    		  ScanNode rhs_3 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    		  JoinNode child_1 = new JoinNode();
+    		  child_1.setLHS(lhs_2);
+    		  child_1.setRHS(rhs_3);
+    		  flag=1;
+    		  if (a1.image.contains("COUNT"))
+    		  {  
+    		  query4.addAggregate(new AggregateNode.AggColumn("Count", new ExprTree.ConstLeaf(1),AggregateNode.AType.COUNT));
+    		  }
+    		  query4.setChild(child_1);    		  }
+    		      		}
+    		else if (t1.image.matches("[^0-9]+") && a1!=null  && tN1!=null && tN1_1!=null && a2!=null &&w1!=null && com1.image.contains("="))
+    		{
+    		  if (l2!=null && l3!=null)    		  {
+    		  Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		  Schema.TableFromFile table_R=tables.get(tN1.image);
+    		  ScanNode lhs_3 = new ScanNode(tN1.image, tN1.image, table_R);
+      		  ScanNode rhs_4 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    		  JoinNode child_2 = new JoinNode();
+    		  child_2.setLHS(lhs_3);
+    		  child_2.setRHS(rhs_4);
+    		  SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w1.image, wc1.image), new ExprTree.VarLeaf(w2.image, wc2.image)));
+    		  child_1.setChild(child_2);
+    		  if (a1.image.contains("SUM") && a2.image.contains("AVG"))
+    		  {
+    		  flag=1;
+    		  query4.addAggregate(new AggregateNode.AggColumn("Sum", new ExprTree(ExprTree.OpCode.ADD, new ExprTree.VarLeaf(null, t1.image), new ExprTree.VarLeaf(null, l3.image)),AggregateNode.AType.SUM));
+    		  query4.addAggregate(new AggregateNode.AggColumn("Average", new ExprTree(ExprTree.OpCode.ADD, new ExprTree.VarLeaf(null, t1_1.image), new ExprTree.VarLeaf(null, l2.image)),AggregateNode.AType.AVG));
+    		  query4.setChild(child_1);
+    		  }
+    	          		  }
+    		  else    		  {
+    		  Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		  Schema.TableFromFile table_R=tables.get(tN1.image);
+    		  ScanNode lhs_3 = new ScanNode(tN1.image, tN1.image, table_R);
+      		  ScanNode rhs_4 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    		  JoinNode child_2 = new JoinNode();
+    		  child_2.setLHS(lhs_3);
+    		  child_2.setRHS(rhs_4);
+    		  SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w1.image, wc1.image), new ExprTree.VarLeaf(w2.image, wc2.image)));
+    		  child_1.setChild(child_2);
+    		  if (a1.image.contains("SUM") && a2.image.contains("AVG"))    		  {
+    		  flag=1;
+    		  query4.addAggregate(new AggregateNode.AggColumn("Sum", new ExprTree.VarLeaf(null, t1.image),AggregateNode.AType.SUM));
+    		  query4.addAggregate(new AggregateNode.AggColumn("Average", new ExprTree.VarLeaf(null, t1_1.image),AggregateNode.AType.AVG));
+    		  query4.setChild(child_1);    		  }    		  }    		    		}
+    		else if (t1.image.matches("[^0-9]+") && tN1!=null && tc1==null && t1_1==null &&tc1_1==null)
+    		{
+    		  Schema.TableFromFile table_R=tables.get(tN1.image);
+	  		  ScanNode child_3 = new ScanNode(tN1.image, tN1.image, table_R);
+      	  	  ProjectionNode lhs_1 = new ProjectionNode();
+      	  	  query1.addColumn(new ProjectionNode.Column(t1.image, new ExprTree.VarLeaf(null, t1.image)));
+    		  query1.setChild(child_3);    		}
+    		else if (t1.image.matches ("[^0-9]+") && tN1!=null && tc1!=null && t1_1!=null && tc1_1!=null && tN1_1!=null && t1_2==null && tc1_2==null && t1_3==null && tc1_3==null )    		{
+    		  if (j1==null && w1==null)    		  {   
+    		  Schema.TableFromFile table_R=tables.get(tN1.image);
+    		  Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    	  	  ScanNode lhs_2 = new ScanNode(t1.image, t1.image, table_R);
+    	      ScanNode rhs_3 = new ScanNode(t1_1.image, t1_1.image, table_S);
+    		  JoinNode child_1 = new JoinNode();
+    		  child_1.setLHS(lhs_2);
+    		  child_1.setRHS(rhs_3);
+    		  query1.addColumn(new ProjectionNode.Column(tc1.image, new ExprTree.VarLeaf(t1.image, tc1.image)));
+    		  query1.addColumn(new ProjectionNode.Column(tc1_1.image, new ExprTree.VarLeaf(t1_1.image, tc1_1.image)));
+    		  query1.setChild(child_1);    		 }
+    		 else if (j1==null && w1!=null && com1.image.contains("=") && aor1==null && aor2==null)
+    		 {
+    		    Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		    Schema.TableFromFile table_R=tables.get(tN1.image);
+    			ScanNode lhs_3 = new ScanNode(tN1.image, tN1.image, table_R);
+    			ScanNode rhs_4 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    			JoinNode child_2 = new JoinNode();
+    			child_2.setLHS(lhs_3);
+    			child_2.setRHS(rhs_4);
+    			SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(tN1.image, wc1.image), new ExprTree.VarLeaf(tN1_1.image, wc2.image)));
+    			child_1.setChild(child_2);
+
+    			query1.addColumn(new ProjectionNode.Column(tc1.image, new ExprTree.VarLeaf(t1.image, tc1.image)));
+    			query1.addColumn(new ProjectionNode.Column(tc1_1.image, new ExprTree.VarLeaf(t1_1.image, tc1_1.image)));
+    			query1.setChild(child_1);    		 }
+    		 else if (j1==null && w1!=null && com1.image.contains("=") && com2.image.contains(">") && com3.image.contains("<") && aor1.image.contains("AND") && aor2.image.contains("or") && p7!=null && p5!=null )
+    		 {
+    		   Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		   Schema.TableFromFile table_R=tables.get(tN1.image);
+    		   ScanNode lhs_3 = new ScanNode(tN1.image, tN1.image,  table_R);
+    		   ScanNode rhs_4 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    		   JoinNode child_2 = new JoinNode();
+    		   child_2.setLHS(lhs_3);
+    		   child_2.setRHS(rhs_4);
+    		   SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.AND, new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(tN1.image, wc1.image), new ExprTree.VarLeaf(tN1_1.image, wc2.image)), new ExprTree(ExprTree.OpCode.OR, new ExprTree(ExprTree.OpCode.GT, new ExprTree.VarLeaf(tN1.image, wc11.image), new ExprTree.VarLeaf(tN1_1.image, wc22.image)), new ExprTree(ExprTree.OpCode.LT, new ExprTree.VarLeaf(tN1.image, wc111.image), new ExprTree.VarLeaf(tN1_1.image, wc222.image)))));
+    		   child_1.setChild(child_2);
+    		   query1.addColumn(new ProjectionNode.Column(tc1.image, new ExprTree.VarLeaf(t1.image, tc1.image)));
+    		   query1.addColumn(new ProjectionNode.Column(tc1_1.image, new ExprTree.VarLeaf(t1_1.image, tc1_1.image)));
+    		   query1.setChild(child_1);    		 }
+    		 else if (j1==null && tN1!=null && tN1_1!=null && tN1_2!=null && w1!=null && com1!=null && com2!=null  && aor1.image.contains("AND") && aor2==null)
+			 {
+			   Schema.TableFromFile table_T=tables.get(tN1_2.image);
+    		   Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    		   Schema.TableFromFile table_R=tables.get(tN1.image);
+    
+    		   ScanNode lhs_5 = new ScanNode(tN1.image, tN1.image, table_R);
+    		   ScanNode rhs_6 = new ScanNode(tN1_1.image, tN1_1.image, table_S);
+    		   JoinNode lhs_3 = new JoinNode();
+     		   lhs_3.setLHS(lhs_5);
+    		   lhs_3.setRHS(rhs_6);
+    		   ScanNode rhs_4 = new ScanNode(tN1_2.image, tN1_2.image, table_T);
+    		   JoinNode child_2 = new JoinNode();
+    		   child_2.setLHS(lhs_3);
+    		   child_2.setRHS(rhs_4);
+    		   if (com1.image.contains("=") && com2.image.contains("="))    		   {
+    		   SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.AND, new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w1.image, wc1.image), new ExprTree.VarLeaf(w2.image, wc2.image)), new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w11.image, wc11.image), new ExprTree.VarLeaf(w22.image, wc22.image))));
+    		   child_1.setChild(child_2);
+    		   query1.addColumn(new ProjectionNode.Column(tc1.image, new ExprTree.VarLeaf(t1.image, tc1.image)));
+    		   query1.addColumn(new ProjectionNode.Column(tc1_1.image, new ExprTree.VarLeaf(t1_1.image, tc1_1.image)));
+    		   query1.setChild(child_1);    		   }
+    		   else if (com1.image.contains("=") && com2.image.contains("< "))    		   {
+    		   SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.AND, new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(w1.image, wc1.image), new ExprTree.VarLeaf(w2.image, wc2.image)), new ExprTree(ExprTree.OpCode.LT, new ExprTree.VarLeaf(w11.image, wc11.image), new ExprTree.VarLeaf(w22.image, wc22.image))));
+    		   child_1.setChild(child_2);
+    		   query1.addColumn(new ProjectionNode.Column(tc1.image, new ExprTree.VarLeaf(t1.image, tc1.image)));
+    		   query1.addColumn(new ProjectionNode.Column(tc1_1.image, new ExprTree.VarLeaf(t1_1.image, tc1_1.image)));
+    		   query1.setChild(child_1);    		   }			 }
+    		 else if (j1!=null && com1.image.contains("=") && w1==null)    		 {
+    		   Schema.TableFromFile table_R=tables.get(tN1.image);
+    		   Schema.TableFromFile table_S=tables.get(tN1_1.image);
+    	  	   ScanNode lhs_2 = new ScanNode(t1.image, t1.image, table_R);
+    	       ScanNode rhs_3 = new ScanNode(t1_1.image, t1_1.image, table_S);
+    		   JoinNode child_2 = new JoinNode();
+    		   child_2.setLHS(lhs_2);
+    		   child_2.setRHS(rhs_3);
+    		   SelectionNode child_1 = new SelectionNode(new ExprTree(ExprTree.OpCode.EQ, new ExprTree.VarLeaf(o1.image, oc1.image), new ExprTree.VarLeaf(o2.image, oc2.image)));
+    		   child_1.setChild(child_2);
+    		   query1.addColumn(new ProjectionNode.Column(tc1.image, new ExprTree.VarLeaf(t1.image, tc1.image)));
+    		   query1.addColumn(new ProjectionNode.Column(tc1_1.image, new ExprTree.VarLeaf(t1_1.image, tc1_1.image)));
+               query1.setChild(child_1);    		 }    		    		}
+    		
+    		else // zheng xing
+    		{
+      		i1 = (int)Integer.parseInt(t1.image);
+      		query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree.ConstLeaf(i1)));
+      		NullSourceNode child_1 = new NullSourceNode(1);
+      		query1.setChild(child_1);
+    		}
+    	
+    
+    	}
+    	else if (t1.image.contains(".")) // fu dian 
+    	{
+		f1=Float.parseFloat(t1.image);
+		query1.addColumn(new ProjectionNode.Column("EXPR", new ExprTree.ConstLeaf(f1)));
+      	NullSourceNode child_1 = new NullSourceNode(1);
+      	query1.setChild(child_1);
+    	}
+  	  }
+  
+  	}
+  	else if (t2!=null)
+  	{
+    	if (!t1.image.contains("."))
+      	{
+      	i1 = (int)Integer.parseInt(t1.image);
+      	query1.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(i1)));
+      	NullSourceNode child_1 = new NullSourceNode(1);
+      	query1.setChild(child_1);
+    	}
+    	else if (t1.image.contains("."))
+    	{
+		f1=Float.parseFloat(t1.image);
+		query1.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(f1)));
+      	NullSourceNode child_1 = new NullSourceNode(1);
+      	query1.setChild(child_1);
+    	}
+  	}
+  	{
+  	  if (flag==0)  	  {  
+      query3= query1;
+      query.add(query3);      }	  else if (flag==1)	  {
+	  query3=query4;
+	  query.add(query3);	  }
+    }
+  }
+  else if (u1!=null && u2==null)
+  {
+	if (t1.image.matches("[0-9]+") && t11.image.matches("[0-9]+") && t2!=null)
+	{
+	  	if (t1_1!=null && t1_1.image.matches("[0-9]+") && t11_1!=null && t11_1.image.matches("[0-9]+") && t2_1!=null)
+		{
+		i1 = (int)Integer.parseInt(t1.image);
+		int i1_1=(int)Integer.parseInt(t1_1.image);
+		int i11=(int)Integer.parseInt(t11.image);
+		int i11_1=(int)Integer.parseInt(t11_1.image);
+		NullSourceNode child_3 = new NullSourceNode(1);
+    	ProjectionNode lhs_1 = new ProjectionNode();
+    	lhs_1.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(i1)));
+    	lhs_1.addColumn(new ProjectionNode.Column(t2_1.image, new ExprTree.ConstLeaf(i1_1)));
+    	lhs_1.setChild(child_3);
+    	NullSourceNode child_4 = new NullSourceNode(1);
+    	ProjectionNode rhs_2 = new ProjectionNode();
+    	rhs_2.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(i11)));
+    	rhs_2.addColumn(new ProjectionNode.Column(t2_1.image, new ExprTree.ConstLeaf(i11_1)));
+    	rhs_2.setChild(child_4);
+    	query2.setLHS(lhs_1);
+    	query2.setRHS(rhs_2);
+		}
+		else
+		{
+		i1 = (int)Integer.parseInt(t1.image);
+		int i11=(int)Integer.parseInt(t11.image);
+		NullSourceNode child_3 = new NullSourceNode(1);
+    	ProjectionNode lhs_1 = new ProjectionNode();
+    	lhs_1.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(i1)));
+    	lhs_1.setChild(child_3);
+    	NullSourceNode child_4 = new NullSourceNode(1);
+    	ProjectionNode rhs_2 = new ProjectionNode();
+    	rhs_2.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(i11)));
+    	rhs_2.setChild(child_4);
+    	query2.setLHS(lhs_1);
+    	query2.setRHS(rhs_2);
+   		}
+	}
+	else if (t1.image.matches("[^0-9]+") && t11.image.matches("[^0-9]+") && t1_1!=null && t11_1!=null && t1_1.image.matches("[^0-9]+") && t11_1.image.matches("[^0-9]+"))//union 04
+	{
+	  //t1,t1_1,t11,t11_1,tN1,tN2
+      Schema.TableFromFile table_R=tables.get(tN1.image);
+	  ScanNode child_3 = new ScanNode(tN1.image, tN1.image, table_R);
+      ProjectionNode lhs_1 = new ProjectionNode();
+      lhs_1.addColumn(new ProjectionNode.Column(t1.image, new ExprTree.VarLeaf(null, t1.image)));
+      lhs_1.addColumn(new ProjectionNode.Column(t1_1.image, new ExprTree.VarLeaf(null, t1_1.image)));
+      lhs_1.setChild(child_3);
+      Schema.TableFromFile table_S=tables.get(tN2.image);
+      ScanNode child_4 = new ScanNode(tN2.image, tN2.image, table_S);
+      ProjectionNode rhs_2 = new ProjectionNode();
+      rhs_2.addColumn(new ProjectionNode.Column(t11.image, new ExprTree.VarLeaf(null, t11.image)));
+      rhs_2.addColumn(new ProjectionNode.Column(t11_1.image, new ExprTree.VarLeaf(null, t11_1.image)));
+      rhs_2.setChild(child_4);
+      query2.setLHS(lhs_1);
+      query2.setRHS(rhs_2);
+	}
+	else if (t1.image.matches("[^0-9]+") && t11.image.matches("[0-9]+") && t1_1!=null && t11_1!=null && t1_1.image.matches("[^0-9]+") && t11_1.image.matches("[0-9]+"))
+	{
+	  s1=tN1.image;
+	  Schema.TableFromFile table_R=tables.get(tN1.image);
+	  ScanNode child_3 = new ScanNode(tN1.image, tN1.image, table_R);
+      ProjectionNode lhs_1 = new ProjectionNode();
+      lhs_1.addColumn(new ProjectionNode.Column(t1.image, new ExprTree.VarLeaf(null, t1.image)));
+      lhs_1.addColumn(new ProjectionNode.Column(t1_1.image, new ExprTree.VarLeaf(null, t1_1.image)));
+      lhs_1.setChild(child_3);
+      int i11=(int)Integer.parseInt(t11.image);
+	  int i11_1=(int)Integer.parseInt(t11_1.image);
+      NullSourceNode child_4 = new NullSourceNode(1);
+      ProjectionNode rhs_2 = new ProjectionNode();
+      rhs_2.addColumn(new ProjectionNode.Column(t22.image, new ExprTree.ConstLeaf(i11)));
+      rhs_2.addColumn(new ProjectionNode.Column(t22_1.image, new ExprTree.ConstLeaf(i11_1)));
+      rhs_2.setChild(child_4);
+      query2.setLHS(lhs_1);
+      query2.setRHS(rhs_2);
+	}
+	else if (t1.image.matches("[^0-9]+") && t11.image.matches("[^0-9]+") && t1_1==null && t11_1==null)
+	{	  Schema.TableFromFile table_R=tables.get(tN1.image);
+	  ScanNode child_3 = new ScanNode(tN1.image, tN1.image, table_R);
+      ProjectionNode lhs_1 = new ProjectionNode();
+      lhs_1.addColumn(new ProjectionNode.Column(t1.image, new ExprTree.VarLeaf(null, t1.image)));
+      lhs_1.setChild(child_3);
+      Schema.TableFromFile table_S=tables.get(tN2.image);
+      ScanNode child_4 = new ScanNode(tN2.image, tN2.image, table_S);
+      ProjectionNode rhs_2 = new ProjectionNode();
+      rhs_2.addColumn(new ProjectionNode.Column(t11.image, new ExprTree.VarLeaf(null, t11.image)));
+      rhs_2.setChild(child_4);
+      query2.setLHS(lhs_1);
+      query2.setRHS(rhs_2);
+	}
+    {
+      query3= query2;
+      query.add(query3);
+    }
+  }
+  else if (u1!=null && u2!=null)
+  {
+	if (t1.image.matches("[0-9]+") && t11.image.matches("[0-9]+") && t111.image.matches("[0-9]+")
+	&&t1_1.image.matches("[0-9]+") && t11_1.image.matches("[0-9]+") && t111_1.image.matches("[0-9]+")
+	&& t2!=null && t2_1!=null )
+	{
+	i1 = (int)Integer.parseInt(t1.image);
+	int i1_1=(int)Integer.parseInt(t1_1.image);
+	int i11=(int)Integer.parseInt(t11.image);
+	int i11_1=(int)Integer.parseInt(t11_1.image);
+	int i111=(int)Integer.parseInt(t111.image);
+	int i111_1=(int)Integer.parseInt(t111_1.image);
+	NullSourceNode child_3 = new NullSourceNode(1);
+    ProjectionNode lhs_1 = new ProjectionNode();
+    lhs_1.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(i1)));
+    lhs_1.addColumn(new ProjectionNode.Column(t2_1.image, new ExprTree.ConstLeaf(i1_1)));
+    lhs_1.setChild(child_3);
+    NullSourceNode child_6 = new NullSourceNode(1);
+    ProjectionNode lhs_4 = new ProjectionNode();
+    lhs_4.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(i11)));
+    lhs_4.addColumn(new ProjectionNode.Column(t2_1.image, new ExprTree.ConstLeaf(i11_1)));
+    lhs_4.setChild(child_6);
+    NullSourceNode child_7 = new NullSourceNode(1);
+    ProjectionNode rhs_5 = new ProjectionNode();
+    rhs_5.addColumn(new ProjectionNode.Column(t2.image, new ExprTree.ConstLeaf(i111)));
+    rhs_5.addColumn(new ProjectionNode.Column(t2_1.image, new ExprTree.ConstLeaf(i111_1)));
+    rhs_5.setChild(child_7);
+    UnionNode rhs_2 = new UnionNode();
+    rhs_2.setLHS(lhs_4);
+    rhs_2.setRHS(rhs_5);
+    query2.setLHS(lhs_1);
+    query2.setRHS(rhs_2);
+	}
+	else if (t1.image.matches("[^0-9]+") && t11.image.matches("[^0-9]+") && t111.image.matches("[^0-9]+") && t1_1.image.matches("[^0-9]+") && t11_1.image.matches("[^0-9]+") && t111_1.image.matches("[^0-9]+"))
+	{
+	  Schema.TableFromFile table_R=tables.get(tN1.image);
+	  ScanNode child_3 = new ScanNode(tN1.image, tN1.image, table_R);
+      ProjectionNode lhs_1 = new ProjectionNode();
+      lhs_1.addColumn(new ProjectionNode.Column(t1.image, new ExprTree.VarLeaf(null, t1.image)));
+      lhs_1.addColumn(new ProjectionNode.Column(t1_1.image, new ExprTree.VarLeaf(null, t1_1.image)));
+      lhs_1.setChild(child_3);
+      Schema.TableFromFile table_S=tables.get(tN2.image);
+      ScanNode child_4 = new ScanNode(tN2.image, tN2.image, table_S);
+      ProjectionNode rhs_2 = new ProjectionNode();
+      rhs_2.addColumn(new ProjectionNode.Column(t11.image, new ExprTree.VarLeaf(null, t11.image)));
+      rhs_2.addColumn(new ProjectionNode.Column(t11_1.image, new ExprTree.VarLeaf(null, t11_1.image)));
+      rhs_2.setChild(child_4);
+      Schema.TableFromFile table_T=tables.get(tN3.image);
+      ScanNode child_5 = new ScanNode(tN3.image, tN3.image, table_T);
+      ProjectionNode lhs_2 = new ProjectionNode();
+      lhs_2.addColumn(new ProjectionNode.Column(t111.image, new ExprTree.VarLeaf(null, t111.image)));
+      lhs_2.addColumn(new ProjectionNode.Column(t111_1.image, new ExprTree.VarLeaf(null, t111_1.image)));
+      lhs_2.setChild(child_5);
+      UnionNode rhs_1 = new UnionNode();
+      rhs_1.setLHS(lhs_2);
+      rhs_1.setRHS(rhs_2);
+      query2.setLHS(lhs_1);
+      query2.setRHS(rhs_1);
+	}
+    {
+      query3= query2;
+      query.add(query3);
+    }
+  }
+  if (S1!=null && S2!=null && S3!=null)//(t1.image.matches ("[^0-9]+") && tN1!=null && tc1!=null && t1_1!=null && tc1_1!=null && tN1_1!=null && t1_2!=null && tc1_2!=null && t1_3!=null && tc1_3!=null)
+    {
+    Schema.TableFromFile table_S=tables.get(st2.image);
+    Schema.TableFromFile table_R=tables.get(st1.image);
+   	ScanNode lhs_6 = new ScanNode(st1.image, st1.image, table_R);
+   	ScanNode rhs_7 = new ScanNode(st2.image, st2.image, table_S);
+    JoinNode child_5 = new JoinNode();
+    child_5.setLHS(lhs_6);
+    child_5.setRHS(rhs_7);
+    		  
+    query_1.addColumn(new ProjectionNode.Column(S2.image, new ExprTree.VarLeaf(st1.image, S2.image)));
+    query_1.addColumn(new ProjectionNode.Column(S4.image, new ExprTree.VarLeaf(st1.image, S4.image)));
+    query_1.addColumn(new ProjectionNode.Column(S6.image, new ExprTree.VarLeaf(st2.image, S6.image)));
+    query_1.addColumn(new ProjectionNode.Column(S8.image, new ExprTree.VarLeaf(st2.image, S8.image)));
+    query_1.setChild(child_5);
+    query.add(query_1);
+    }
+}
+//)+//发生一次或多次
+//   {
+//     if (u1==null)
+//     {
+//       return query1;
+//     }else if (u1!=null)
+     {
+     return query;
+     }
+//   
+//   }
+//   
+  
+}
+
+
